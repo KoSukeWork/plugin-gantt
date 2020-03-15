@@ -1,6 +1,8 @@
 // Based on jQuery.ganttView v.0.8.8 Copyright (c) 2010 JC Grubbs - jc.grubbs@devmynd.com - MIT License
-var Gantt = function() {
+var Gantt = function () {
     this.data = [];
+    // this.subdata = [];
+    //[{id:1,data:[{xxxxx}],show:true}]
 
     this.options = {
         container: "#gantt-chart",
@@ -16,10 +18,13 @@ var Gantt = function() {
 };
 
 // Save record after a resize or move
-Gantt.prototype.saveRecord = function(record) {
+Gantt.prototype.saveRecord = function (record) {
+    console.log(record);
+    let url=$(this.options.container).data("save-url");
+    if(record.type==="task" && $(this.options.container).data('type')!="task") url=$(this.options.container).data("save-task-url")+"&project_id="+record.proid;
     $.ajax({
         cache: false,
-        url: $(this.options.container).data("save-url"),
+        url: url,
         contentType: "application/json",
         type: "POST",
         processData: false,
@@ -27,15 +32,92 @@ Gantt.prototype.saveRecord = function(record) {
     });
 };
 
-// Build the Gantt chart
-Gantt.prototype.show = function() {
-    this.data = this.prepareData($(this.options.container).data('records'));
+Gantt.prototype.getTaskJSON = function (id) {
+    let s = this.data.find(x => x.proid == id);
+    let d = this.data.findIndex(x => x.id == id && x.type === 'project');
+    console.log(d);
+    if (s === undefined) {
+        $.ajax({
+            cache: false,
+            url: this.data[d].gantt_json_link,
+            contentType: "application/json",
+            type: "GET",
+            processData: true,
+            // data: JSON.stringify(record)
+            success: req => {
+                console.log('ajax', req.tasks);
+                // if (req.tasks.length > 0) {
+                //     this.subdata.push(this.prepareSubData({ id: id, show: true, data: req.tasks }))
+                //     console.log('sub', this.subdata);
+                //     this.reshow();
+                // }
+                if (req.tasks.length > 0) {
+                    let tasks = this.prepareData(req.tasks);
+                    console.log('task', tasks)
+                    tasks.forEach(x => {
+                        x.proid = id;
+                        x.show = true;
+                        this.data.splice(d + 1, 0, x)
+                    })
+                    console.log(this.data)
+                    this.show(re = true);
+                    KB.tooltip();
+                }
+            }
+        });
+    } else {
+        for (let i = 0; i < this.data.length; i++) {
+            if (this.data[i].proid == id) {
+                this.data[i].show = !this.data[i].show
+            }
+        }
+        this.show(re = true)
+        KB.tooltip();
+        // this.subdata[s].show = (!this.subdata[s].show);
+        // this.reshow();
 
+    }
+
+};
+
+// Gantt.prototype.reshow = function () {
+//     // this.subdata = this.prepareSubData(this.subdata);
+//     var minDays = Math.floor((this.options.slideWidth / this.options.cellWidth) + 5);
+//     var range = this.getDateRange(minDays);
+//     var startDate = range[0];
+//     var endDate = range[1];
+//     var container = $(this.options.container);
+//     var chart = jQuery("<div>", { "class": "ganttview" });
+//     jQuery("div.ganttview").empty();
+//     chart.append(this.renderVerticalHeader());
+//     chart.append(this.renderSlider(startDate, endDate));
+//     container.append(chart);
+
+//     jQuery("div.ganttview-grid-row div.ganttview-grid-row-cell:last-child", container).addClass("last");
+//     jQuery("div.ganttview-hzheader-days div.ganttview-hzheader-day:last-child", container).addClass("last");
+//     jQuery("div.ganttview-hzheader-months div.ganttview-hzheader-month:last-child", container).addClass("last");
+
+//     if (!$(this.options.container).data('readonly')) {
+//         this.listenForBlockResize(startDate);
+//         this.listenForBlockMove(startDate);
+//     }
+//     else {
+//         this.options.allowResizes = false;
+//         this.options.allowMoves = false;
+//     }
+// };
+
+// Build the Gantt chart
+Gantt.prototype.show = function (re = false) {
+    if (!re) {
+        this.data = this.prepareData($(this.options.container).data('records'));
+    }
     var minDays = Math.floor((this.options.slideWidth / this.options.cellWidth) + 5);
     var range = this.getDateRange(minDays);
     var startDate = range[0];
     var endDate = range[1];
     var container = $(this.options.container);
+    if (re) jQuery("div.ganttview").remove();
     var chart = jQuery("<div>", { "class": "ganttview" });
 
     chart.append(this.renderVerticalHeader());
@@ -46,7 +128,7 @@ Gantt.prototype.show = function() {
     jQuery("div.ganttview-hzheader-days div.ganttview-hzheader-day:last-child", container).addClass("last");
     jQuery("div.ganttview-hzheader-months div.ganttview-hzheader-month:last-child", container).addClass("last");
 
-    if (! $(this.options.container).data('readonly')) {
+    if (!$(this.options.container).data('readonly')) {
         this.listenForBlockResize(startDate);
         this.listenForBlockMove(startDate);
     }
@@ -54,51 +136,74 @@ Gantt.prototype.show = function() {
         this.options.allowResizes = false;
         this.options.allowMoves = false;
     }
+    console.log("data", this.data);
 };
 
-Gantt.prototype.infoTooltip = function(content) {
-    var markdown = $("<div>", {"class": "markdown"}).append(content);
-    var script = $("<script>", {"type": "text/template"}).append(markdown);
-    var icon = $('<i>', {"class": "fa fa-info-circle"});
-    return $('<span>', {"class": "tooltip"}).append(icon).append(script);
+Gantt.prototype.infoTooltip = function (content) {
+    var markdown = $("<div>", { "class": "markdown" }).append(content);
+    var script = $("<script>", { "type": "text/template" }).append(markdown);
+    var icon = $('<i>', { "class": "fa fa-info-circle" });
+    return $('<span>', { "class": "tooltip" }).append(icon).append(script);
 };
 
 // Render record list on the left
-Gantt.prototype.renderVerticalHeader = function() {
+Gantt.prototype.renderVerticalHeader = function () {
     var headerDiv = jQuery("<div>", { "class": "ganttview-vtheader" });
     var itemDiv = jQuery("<div>", { "class": "ganttview-vtheader-item" });
     var seriesDiv = jQuery("<div>", { "class": "ganttview-vtheader-series" });
 
     for (var i = 0; i < this.data.length; i++) {
+        
+        if (this.data[i].type == "task" && !this.data[i].show && $(this.options.container).data('type')!="task") continue;
         var content = jQuery("<span>")
             .append(this.infoTooltip(this.getVerticalHeaderTooltip(this.data[i])))
             .append("&nbsp;");
-
-        if (this.data[i].type == "task") {
-            content.append(jQuery('<strong>').text('#'+this.data[i].id+' '));
-            content.append(jQuery("<a>", {"href": this.data[i].link, "title": this.data[i].title}).text(this.data[i].title));
+ 
+        if (this.data[i].type == "task" && this.data[i].show && $(this.options.container).data('type')!="task") {
+            content.prepend("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
+            content.append(jQuery('<strong>').text('#' + this.data[i].id + ' '));
+            content.append(jQuery("<a>", { "href": this.data[i].link, "title": this.data[i].title }).text(this.data[i].title));
         }
-        else {
+        if (this.data[i].type == "task" && $(this.options.container).data('type')=="task") {
+            // content.prepend("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
+            content.append(jQuery('<strong>').text('#' + this.data[i].id + ' '));
+            content.append(jQuery("<a>", { "href": this.data[i].link, "title": this.data[i].title }).text(this.data[i].title));
+        }
+        if (this.data[i].type == "project") {
             content
-                .append(jQuery("<a>", {"href": this.data[i].board_link, "title": $(this.options.container).data("label-board-link")}).append('<i class="fa fa-th"></i>'))
+                .append(jQuery("<a>", { "href": this.data[i].board_link, "title": $(this.options.container).data("label-board-link") }).append('<i class="fa fa-th"></i>'))
                 .append("&nbsp;")
-                .append(jQuery("<a>", {"href": this.data[i].gantt_link, "title": $(this.options.container).data("label-gantt-link")}).append('<i class="fa fa-sliders"></i>'))
+                .append(jQuery("<a>", { "href": this.data[i].gantt_link, "title": $(this.options.container).data("label-gantt-link") }).append('<i class="fa fa-sliders"></i>'))
                 .append("&nbsp;")
-                .append(jQuery("<a>", {"href": this.data[i].link}).text(this.data[i].title));
+                .append(jQuery("<a>", { "href": this.data[i].link }).text(this.data[i].title))
+                // .append("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
+                .append(jQuery("<a>", { "href": '#', "class": "ganttview-float-right task_show", "data-id": this.data[i].id }).append('<i class="fa fa-caret-down"></i>'));
+            // console.log("listID", this.data[i].id);
+            // let d = this.subdata.find(x => (x.id == this.data[i].id && x.show));
+            // console.log('list', d);
+            // if (d !== undefined) {
+            //     d.data.forEach(x => {
+            //         var cont = jQuery("<span>")
+            //             .append(this.infoTooltip(this.getVerticalHeaderTooltip(x)))
+            //             .append("&nbsp;");
+            //         cont.append(jQuery('<strong>').text('#' + x.id + ' '));
+            //         cont.append(jQuery("<a>", { "href": x.link, "title": x.title }).text(x.title));
+            //     })
+
+            // }
         }
 
-        seriesDiv.append(jQuery("<div>", {"class": "ganttview-vtheader-series-name"}).append(content));
+        seriesDiv.append(jQuery("<div>", { "class": "ganttview-vtheader-series-name" }).append(content));
     }
 
     itemDiv.append(seriesDiv);
     headerDiv.append(itemDiv);
-
     return headerDiv;
 };
 
 // Render right part of the chart (top header + grid + bars)
-Gantt.prototype.renderSlider = function(startDate, endDate) {
-    var slideDiv = jQuery("<div>", {"class": "ganttview-slide-container"});
+Gantt.prototype.renderSlider = function (startDate, endDate) {
+    var slideDiv = jQuery("<div>", { "class": "ganttview-slide-container" });
     var dates = this.getDates(startDate, endDate);
 
     slideDiv.append(this.renderHorizontalHeader(dates));
@@ -110,7 +215,7 @@ Gantt.prototype.renderSlider = function(startDate, endDate) {
 };
 
 // Render top header (days)
-Gantt.prototype.renderHorizontalHeader = function(dates) {
+Gantt.prototype.renderHorizontalHeader = function (dates) {
     var headerDiv = jQuery("<div>", { "class": "ganttview-hzheader" });
     var monthsDiv = jQuery("<div>", { "class": "ganttview-hzheader-months" });
     var daysDiv = jQuery("<div>", { "class": "ganttview-hzheader-days" });
@@ -140,7 +245,7 @@ Gantt.prototype.renderHorizontalHeader = function(dates) {
 };
 
 // Render grid
-Gantt.prototype.renderGrid = function(dates) {
+Gantt.prototype.renderGrid = function (dates) {
     var gridDiv = jQuery("<div>", { "class": "ganttview-grid" });
     var rowDiv = jQuery("<div>", { "class": "ganttview-grid-row" });
 
@@ -170,7 +275,7 @@ Gantt.prototype.renderGrid = function(dates) {
 };
 
 // Render bar containers
-Gantt.prototype.addBlockContainers = function() {
+Gantt.prototype.addBlockContainers = function () {
     var blocksDiv = jQuery("<div>", { "class": "ganttview-blocks" });
 
     for (var i = 0; i < this.data.length; i++) {
@@ -181,19 +286,20 @@ Gantt.prototype.addBlockContainers = function() {
 };
 
 // Render bars
-Gantt.prototype.addBlocks = function(slider, start) {
+Gantt.prototype.addBlocks = function (slider, start) {
     var rows = jQuery("div.ganttview-blocks div.ganttview-block-container", slider);
     var rowIdx = 0;
 
     for (var i = 0; i < this.data.length; i++) {
         var series = this.data[i];
+        if (series.type === 'task' && !series.show && $(this.options.container).data('type')!="task") continue;
         var size = this.daysBetween(series.start, series.end) + 1;
         var offset = this.daysBetween(start, series.start);
         var text = jQuery("<div>", {
-          "class": "ganttview-block-text",
-          "css": {
-              "width": ((size * this.options.cellWidth) - 19) + "px"
-          }
+            "class": "ganttview-block-text",
+            "css": {
+                "width": ((size * this.options.cellWidth) - 19) + "px"
+            }
         });
 
         var block = jQuery("<div>", {
@@ -216,7 +322,7 @@ Gantt.prototype.addBlocks = function(slider, start) {
     }
 };
 
-Gantt.prototype.addTaskBarText = function(container, record, size) {
+Gantt.prototype.addTaskBarText = function (container, record, size) {
     if (size >= 4) {
         container.html($('<span>').text(record.progress + ' - #' + record.id + ' ' + record.title));
     }
@@ -226,7 +332,7 @@ Gantt.prototype.addTaskBarText = function(container, record, size) {
 };
 
 // Get tooltip for vertical header
-Gantt.prototype.getVerticalHeaderTooltip = function(record) {
+Gantt.prototype.getVerticalHeaderTooltip = function (record) {
     if (record.type === 'task') {
         return this.getTaskTooltip(record);
     }
@@ -234,7 +340,7 @@ Gantt.prototype.getVerticalHeaderTooltip = function(record) {
     return this.getProjectTooltip(record);
 };
 
-Gantt.prototype.getTaskTooltip = function(record) {
+Gantt.prototype.getTaskTooltip = function (record) {
     var assigneeLabel = $(this.options.container).data("label-assignee");
     var tooltip = $('<span>')
         .append($('<strong>').text(record.column_title + ' (' + record.progress + ')'))
@@ -246,7 +352,7 @@ Gantt.prototype.getTaskTooltip = function(record) {
     return this.getTooltipFooter(record, tooltip);
 };
 
-Gantt.prototype.getProjectTooltip = function(record) {
+Gantt.prototype.getProjectTooltip = function (record) {
     var tooltip = $('<span>');
 
     if ('project-manager' in record.users) {
@@ -265,7 +371,7 @@ Gantt.prototype.getProjectTooltip = function(record) {
     return this.getTooltipFooter(record, tooltip);
 };
 
-Gantt.prototype.getTooltipFooter = function(record, tooltip) {
+Gantt.prototype.getTooltipFooter = function (record, tooltip) {
     var notDefinedLabel = $(this.options.container).data("label-not-defined");
     var startDateLabel = $(this.options.container).data("label-start-date");
     var startEndLabel = $(this.options.container).data("label-end-date");
@@ -283,7 +389,7 @@ Gantt.prototype.getTooltipFooter = function(record, tooltip) {
 };
 
 // Set bar color
-Gantt.prototype.setBarColor = function(block, record) {
+Gantt.prototype.setBarColor = function (block, record) {
     block.css("background-color", record.color.background);
     block.css("border-color", record.color.border);
 
@@ -315,14 +421,14 @@ Gantt.prototype.setBarColor = function(block, record) {
 };
 
 // Setup jquery-ui resizable
-Gantt.prototype.listenForBlockResize = function(startDate) {
+Gantt.prototype.listenForBlockResize = function (startDate) {
     var self = this;
 
     jQuery("div.ganttview-block", this.options.container).resizable({
         grid: this.options.cellWidth,
         handles: "e,w",
         delay: 300,
-        stop: function() {
+        stop: function () {
             var block = jQuery(this);
             self.updateDataAndPosition(block, startDate);
             self.saveRecord(block.data("record"));
@@ -331,14 +437,14 @@ Gantt.prototype.listenForBlockResize = function(startDate) {
 };
 
 // Setup jquery-ui drag and drop
-Gantt.prototype.listenForBlockMove = function(startDate) {
+Gantt.prototype.listenForBlockMove = function (startDate) {
     var self = this;
 
     jQuery("div.ganttview-block", this.options.container).draggable({
         axis: "x",
         delay: 300,
         grid: [this.options.cellWidth, this.options.cellWidth],
-        stop: function() {
+        stop: function () {
             var block = jQuery(this);
             self.updateDataAndPosition(block, startDate);
             self.saveRecord(block.data("record"));
@@ -347,7 +453,7 @@ Gantt.prototype.listenForBlockMove = function(startDate) {
 };
 
 // Update the record data and the position on the chart
-Gantt.prototype.updateDataAndPosition = function(block, startDate) {
+Gantt.prototype.updateDataAndPosition = function (block, startDate) {
     var container = jQuery("div.ganttview-slide-container", this.options.container);
     var scroll = container.scrollLeft();
     var offset = block.offset().left - container.offset().left - 1 + scroll;
@@ -397,7 +503,7 @@ Gantt.prototype.updateDataAndPosition = function(block, startDate) {
 
 // Creates a 3 dimensional array [year][month][day] of every day
 // between the given start and end dates
-Gantt.prototype.getDates = function(start, end) {
+Gantt.prototype.getDates = function (start, end) {
     var dates = [];
     dates[start.getFullYear()] = [];
     dates[start.getFullYear()][start.getMonth()] = [start];
@@ -406,11 +512,11 @@ Gantt.prototype.getDates = function(start, end) {
     while (this.compareDate(last, end) == -1) {
         var next = this.addDays(this.cloneDate(last), 1);
 
-        if (! dates[next.getFullYear()]) {
+        if (!dates[next.getFullYear()]) {
             dates[next.getFullYear()] = [];
         }
 
-        if (! dates[next.getFullYear()][next.getMonth()]) {
+        if (!dates[next.getFullYear()][next.getMonth()]) {
             dates[next.getFullYear()][next.getMonth()] = [];
         }
 
@@ -422,8 +528,9 @@ Gantt.prototype.getDates = function(start, end) {
 };
 
 // Convert data to Date object
-Gantt.prototype.prepareData = function(data) {
+Gantt.prototype.prepareData = function (data) {
     for (var i = 0; i < data.length; i++) {
+        console.log('d', data);
         var start = new Date(data[i].start[0], data[i].start[1] - 1, data[i].start[2], 0, 0, 0, 0);
         data[i].start = start;
 
@@ -433,9 +540,17 @@ Gantt.prototype.prepareData = function(data) {
 
     return data;
 };
+// Gantt.prototype.prepareSubData = function (data) {
+
+//     // for (var i = 0; i < data.length; i++) {
+//     data.data = this.prepareData(data.data);
+//     // }
+//     console.log("preend", data);
+//     return data;
+// };
 
 // Get the start and end date from the data provided
-Gantt.prototype.getDateRange = function(minDays) {
+Gantt.prototype.getDateRange = function (minDays) {
     var minStart = new Date();
     var maxEnd = new Date();
 
@@ -460,6 +575,56 @@ Gantt.prototype.getDateRange = function(minDays) {
         }
     }
 
+    // if (this.subdata.length > 0) {
+    //     console.log("sub-get", this.subdata.filter(x => x.show));
+    //     this.subdata.filter(x => x.show).forEach(x => {
+    //         x.data.forEach(d => {
+    //             // console.log('d', d);
+    //             var start = new Date();
+    //             start.setTime(Date.parse(d.start));
+
+    //             var end = new Date();
+    //             end.setTime(Date.parse(d.end));
+
+    //             if (i == 0) {
+    //                 minStart = start;
+    //                 maxEnd = end;
+    //             }
+
+    //             if (this.compareDate(minStart, start) == 1) {
+    //                 minStart = start;
+    //             }
+
+    //             if (this.compareDate(maxEnd, end) == -1) {
+    //                 maxEnd = end;
+    //             }
+    //         })
+    //     })
+    // this.subdata.filter(x => x.show).map(d => d.data).reduce((x, y) => x.concat(y), []).forEach(data => {
+
+    //     var start = new Date();
+    //     start.setTime(Date.parse(data.start));
+
+    //     var end = new Date();
+    //     end.setTime(Date.parse(data.end));
+
+    //     if (i == 0) {
+    //         minStart = start;
+    //         maxEnd = end;
+    //     }
+
+    //     if (this.compareDate(minStart, start) == 1) {
+    //         minStart = start;
+    //     }
+
+    //     if (this.compareDate(maxEnd, end) == -1) {
+    //         maxEnd = end;
+    //     }
+    // });
+
+    // }
+
+
     // Insure that the width of the chart is at least the slide width to avoid empty
     // whitespace to the right of the grid
     if (this.daysBetween(minStart, maxEnd) < minDays) {
@@ -468,13 +633,12 @@ Gantt.prototype.getDateRange = function(minDays) {
 
     // Always start one day before the minStart
     minStart.setDate(minStart.getDate() - 1);
-
     return [minStart, maxEnd];
 };
 
 // Returns the number of day between 2 dates
-Gantt.prototype.daysBetween = function(start, end) {
-    if (! start || ! end) {
+Gantt.prototype.daysBetween = function (start, end) {
+    if (!start || !end) {
         return 0;
     }
 
@@ -489,23 +653,23 @@ Gantt.prototype.daysBetween = function(start, end) {
 };
 
 // Return true if it's the weekend
-Gantt.prototype.isWeekend = function(date) {
+Gantt.prototype.isWeekend = function (date) {
     return date.getDay() % 6 == 0;
 };
 
 // Return true if it's today
-Gantt.prototype.isToday = function(date) {
-   var today = new Date();
-   return today.toDateString() == date.toDateString();
- };
+Gantt.prototype.isToday = function (date) {
+    var today = new Date();
+    return today.toDateString() == date.toDateString();
+};
 
 // Clone Date object
-Gantt.prototype.cloneDate = function(date) {
+Gantt.prototype.cloneDate = function (date) {
     return new Date(date.getTime());
 };
 
 // Add days to a Date object
-Gantt.prototype.addDays = function(date, value) {
+Gantt.prototype.addDays = function (date, value) {
     date.setDate(date.getDate() + value * 1);
     return date;
 };
@@ -517,7 +681,7 @@ Gantt.prototype.addDays = function(date, value) {
  * 0 = values are equal
  * 1 = date1 is greaterthan date2.
  */
-Gantt.prototype.compareDate = function(date1, date2) {
+Gantt.prototype.compareDate = function (date1, date2) {
     if (isNaN(date1) || isNaN(date2)) {
         throw new Error(date1 + " - " + date2);
     } else if (date1 instanceof Date && date2 instanceof Date) {

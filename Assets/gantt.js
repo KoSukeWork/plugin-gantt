@@ -1,3 +1,5 @@
+
+
 KB.on('dom.ready', function () {
     function goToLink (selector) {
         if (! KB.modal.isOpen()) {
@@ -15,8 +17,13 @@ KB.on('dom.ready', function () {
 
     if (KB.exists('#gantt-chart')) {
         var chart = new Gantt();
+        jQuery("#gantt-chart").on("click",".task_show",function(){
+            let id=jQuery(this).data('id')
+            console.log(id);
+            chart.getTaskJSON(id);
+        })
         chart.show();
-
         KB.tooltip();
+
     }
 });

@@ -50,6 +50,7 @@ class ProjectGanttFormatter extends BaseFormatter implements FormatterInterface
                 'color' => $color,
                 'not_defined' => empty($project['start_date']) || empty($project['end_date']),
                 'users' => $this->projectUserRoleModel->getAllUsersGroupedByRole($project['id']),
+                'gantt_json_link' => $this->helper->url->href('TaskGanttController', 'show_json', array('project_id' => $project['id'], 'plugin' => 'Gantt')),
             );
         }
 
