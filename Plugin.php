@@ -27,6 +27,8 @@ class Plugin extends Base
         $this->hook->on('template:layout:js', array('template' => 'plugins/Gantt/Assets/gantt.js'));
         $this->hook->on('template:layout:css', array('template' => 'plugins/Gantt/Assets/gantt.css'));
 
+        $this->helper->register('ganttHelper','\Kanboard\Plugin\Gantt\Helper\GanttHelper');
+
         $this->container['projectGanttFormatter'] = $this->container->factory(function ($c) {
             return new ProjectGanttFormatter($c);
         });

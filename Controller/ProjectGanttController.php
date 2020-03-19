@@ -29,11 +29,12 @@ class ProjectGanttController extends BaseController
             ->withFilter(new ProjectIdsFilter($project_ids));
 
         $filter->getQuery()->asc(ProjectModel::TABLE.'.start_date');
-
+     
         $this->response->html($this->helper->layout->app('Gantt:project_gantt/show', array(
             'projects' => $filter->format($this->projectGanttFormatter),
             'title' => t('Gantt chart for all projects'),
         )));
+        
     }
 
     /**

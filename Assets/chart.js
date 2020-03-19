@@ -13,15 +13,16 @@ var Gantt = function () {
         cellWidth: 21,
         cellHeight: 31,
         slideWidth: 1000,
-        vHeaderWidth: 200
+        vHeaderWidth: 200,
+        delLine: true
     };
 };
 
 // Save record after a resize or move
 Gantt.prototype.saveRecord = function (record) {
     console.log(record);
-    let url=$(this.options.container).data("save-url");
-    if(record.type==="task" && $(this.options.container).data('type')!="task") url=$(this.options.container).data("save-task-url")+"&project_id="+record.proid;
+    let url = $(this.options.container).data("save-url");
+    if (record.type === "task" && $(this.options.container).data('type') != "task") url = $(this.options.container).data("save-task-url") + "&project_id=" + record.proid;
     $.ajax({
         cache: false,
         url: url,
@@ -39,7 +40,7 @@ Gantt.prototype.getTaskJSON = function (id) {
     if (s === undefined) {
         $.ajax({
             cache: false,
-            url: this.data[d].gantt_json_link,
+            url: this.data[d].gantt_json_link + '&search=' + ($(this.options.container).data('search').replace(/\s/g, '+')),
             contentType: "application/json",
             type: "GET",
             processData: true,
@@ -53,6 +54,7 @@ Gantt.prototype.getTaskJSON = function (id) {
                 // }
                 if (req.tasks.length > 0) {
                     let tasks = this.prepareData(req.tasks);
+                    tasks = this.prepareURL(tasks);
                     console.log('task', tasks)
                     tasks.forEach(x => {
                         x.proid = id;
@@ -153,21 +155,31 @@ Gantt.prototype.renderVerticalHeader = function () {
     var seriesDiv = jQuery("<div>", { "class": "ganttview-vtheader-series" });
 
     for (var i = 0; i < this.data.length; i++) {
-        
-        if (this.data[i].type == "task" && !this.data[i].show && $(this.options.container).data('type')!="task") continue;
+
+        if (this.data[i].type == "task" && !this.data[i].show && $(this.options.container).data('type') != "task") continue;
         var content = jQuery("<span>")
             .append(this.infoTooltip(this.getVerticalHeaderTooltip(this.data[i])))
             .append("&nbsp;");
- 
-        if (this.data[i].type == "task" && this.data[i].show && $(this.options.container).data('type')!="task") {
+
+        if (this.data[i].type == "task" && this.data[i].show && $(this.options.container).data('type') != "task") {
             content.prepend("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
             content.append(jQuery('<strong>').text('#' + this.data[i].id + ' '));
-            content.append(jQuery("<a>", { "href": this.data[i].link, "title": this.data[i].title }).text(this.data[i].title));
+
+            if (this.data[i].not_defined && this.options.delLine) {
+                content.append(jQuery("<a>", { "href": this.data[i].link, "title": this.data[i].title }).append('<s>' + this.data[i].title + '</s>'));
+            } else {
+                content.append(jQuery("<a>", { "href": this.data[i].link, "title": this.data[i].title }).text(this.data[i].title));
+            }
+
         }
-        if (this.data[i].type == "task" && $(this.options.container).data('type')=="task") {
+        if (this.data[i].type == "task" && $(this.options.container).data('type') == "task") {
             // content.prepend("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
             content.append(jQuery('<strong>').text('#' + this.data[i].id + ' '));
-            content.append(jQuery("<a>", { "href": this.data[i].link, "title": this.data[i].title }).text(this.data[i].title));
+            if (this.data[i].not_defined && this.options.delLine) {
+                content.append(jQuery("<a>", { "href": this.data[i].link, "title": this.data[i].title }).append('<s>' + this.data[i].title + '</s>'));
+            } else {
+                content.append(jQuery("<a>", { "href": this.data[i].link, "title": this.data[i].title }).text(this.data[i].title));
+            }
         }
         if (this.data[i].type == "project") {
             content
@@ -292,7 +304,7 @@ Gantt.prototype.addBlocks = function (slider, start) {
 
     for (var i = 0; i < this.data.length; i++) {
         var series = this.data[i];
-        if (series.type === 'task' && !series.show && $(this.options.container).data('type')!="task") continue;
+        if (series.type === 'task' && !series.show && $(this.options.container).data('type') != "task") continue;
         var size = this.daysBetween(series.start, series.end) + 1;
         var offset = this.daysBetween(start, series.start);
         var text = jQuery("<div>", {
@@ -538,6 +550,15 @@ Gantt.prototype.prepareData = function (data) {
         data[i].end = end;
     }
 
+    return data;
+};
+
+Gantt.prototype.prepareURL = function (data) {
+    for (var i = 0; i < data.length; i++) {
+        var link = data[i].link.replace(/&amp;/g, "&");
+        data[i].link = link;
+    }
+    console.log('url', data);
     return data;
 };
 // Gantt.prototype.prepareSubData = function (data) {
